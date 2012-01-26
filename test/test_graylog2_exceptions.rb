@@ -30,6 +30,15 @@ class TestGraylog2Exceptions < Test::Unit::TestCase
 		assert_equal "staging", c.args[:_rails_env]
   end
 
+  def test_custom_attributes_dont_override_standard
+    ex = build_exception
+    c = Graylog2Exceptions.new(nil, {:line => 9999})
+    sent = Zlib::Inflate.inflate(c.send_to_graylog2(ex).join)
+    json = JSON.parse(sent)
+
+    assert 9999 != json["line"]
+  end
+
   def test_correct_parameters_when_not_custom_set
     c = Graylog2Exceptions.new(nil, {})
     
@@ -90,6 +99,51 @@ class TestGraylog2Exceptions < Test::Unit::TestCase
     assert_equal ex.backtrace[0].split(":")[0], json["file"]
     assert_equal 'my_awesome_app', json["_app"]
     assert_equal 'staging', json["_rails_env"]
+  end
+
+  def test_send_backtraceless_exception_to_graylog2
+    ex = Exception.new("bad")
+    c = Graylog2Exceptions.new(nil, {})
+    sent = Zlib::Inflate.inflate(c.send_to_graylog2(ex).join)
+    json = JSON.parse(sent)
+
+    assert json["short_message"].include?('bad')
+    assert json["full_message"].nil?
+  end
+
+  def test_send_rack_environment_to_graylog2
+    ex = build_exception
+    c = Graylog2Exceptions.new(nil, {})
+
+    sent = Zlib::Inflate.inflate(c.send_to_graylog2(ex).join)
+    json = JSON.parse(sent)
+    assert json.keys.none? {|k| k =~/^_env_/ }
+
+    sent = Zlib::Inflate.inflate(c.send_to_graylog2(ex, {}).join)
+    json = JSON.parse(sent)
+    assert json.keys.none? {|k| k =~/^_env_/ }
+
+    bad = Object.new
+    def bad.inspect; raise "bad"; end
+    data = {
+        "nil" => nil,
+        "str" => "bar",
+        "int" => 123,
+        "arr" => ["a", 2],
+        "hash" => {"a" => 1},
+        "obj" => Object.new,
+        "bad" => bad
+    }
+    
+    sent = Zlib::Inflate.inflate(c.send_to_graylog2(ex, data).join)
+    json = JSON.parse(sent)
+    assert_equal('nil', json["_env_nil"])
+    assert_equal('"bar"', json["_env_str"])
+    assert_equal('123', json["_env_int"])
+    assert_equal('["a", 2]', json["_env_arr"])
+    assert_equal('{"a"=>1}', json["_env_hash"])
+    assert_match(/#<Object:.*>/, json["_env_obj"])
+    assert ! json.has_key?("_env_bad")
   end
 
   def test_invalid_port_detection
