@@ -12,7 +12,7 @@ begin
     gem.email = "lennart@socketfeed.com"
     gem.homepage = "http://www.graylog2.org/"
     gem.authors = "Lennart Koopmann"
-    gem.add_dependency "gelf", "= 1.1.3"
+    gem.add_dependency "gelf", "= 3.1.0"
     # gem is a Gem::Specification... see http://www.rubygems.org/read/chapter/20 for additional settings
   end
   Jeweler::GemcutterTasks.new
